@@ -45,7 +45,7 @@ fn get_own_chunks(root: &PathBuf) -> (HashMap<FileHash, Vec<ChunkId>>, HashMap<F
 		let entry = entry.unwrap();
 		let path = entry.path();
 
-		if path.is_dir() && path.file_name() != Some(OsStr::from_bytes(b"downloads")) {
+		if path.is_dir() && path.file_name().map(|f| f.to_string_lossy()) != Some("downloads".into()) {
 			let file_hash =
 				FileHash::from_str_radix(path.file_name().unwrap().to_str().unwrap(), 16).unwrap();
 			let mut chunk_ids = Vec::new();
