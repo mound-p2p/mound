@@ -269,10 +269,12 @@ enum Command {
 	DownloadByHash {
 		id: u32,
 		#[serde_as(as = "serde_with::hex::Hex")]
+		#[serde(rename = "fileHash")]
 		file_hash: [u8; 16],
 	},
 	DownloadByName {
 		id: u32,
+		#[serde(rename = "fileName")]
 		file_name: String,
 	},
 	GetFiles {
