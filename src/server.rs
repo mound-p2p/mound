@@ -265,7 +265,7 @@ impl Server {
 				}
 				Request::WriteChunks(file_hash, chunk_ids) => {
 					// create file dir
-					std::fs::create_dir_all(self.chunk_dir.join(format!("{file_hash:x}"))).unwrap();
+					std::fs::create_dir_all(self.chunk_dir.join(format!("{file_hash:x}/"))).unwrap();
 
 					for chunk_id in chunk_ids {
 						let chunk = peer.block_recv().unwrap().unwrap();
@@ -294,8 +294,11 @@ impl Server {
 				}
 				Request::SetFileName(file_hash, name) => {
 // write `name` file in file dir
-					let name_path = self.chunk_dir.join(format!("{file_hash:x}")).join("name");
+					let name_path = self.chunk_dir.join(format!("{file_hash:x}"));
 
+					std::fs::create_dir_all(&name_path).unwrap();
+
+					let name_path = name_path.join("name");
 					std::fs::write(name_path, &name).unwrap();
 
 					self.add_file(file_hash, name);

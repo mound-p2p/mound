@@ -145,29 +145,32 @@ fn main() {
 		let command = rx.try_recv();
 
 		if let Ok(command) = command {
-			let resp = match command {
+			match command {
 				Command::Upload { path, id } => {
-					server.upload(&path);
-					StdoutResponse {
+					write_response(StdoutResponse {
 						id,
 						data: Data::Status(Status { ok: true }),
-					}
+					});
+
+					server.upload(&path);
 				}
 				Command::DownloadByHash { file_hash, id } => {
+					write_response(StdoutResponse {
+						id,
+						data: Data::Status(Status { ok: true }),
+					});
+
 					let hash = FileHash::from_be_bytes(file_hash);
 					server.download(hash);
-					StdoutResponse {
-						id,
-						data: Data::Status(Status { ok: true }),
-					}
 				}
 				Command::DownloadByName { file_name, id } => {
-					let hash = server.file_hash_by_name(&file_name).unwrap();
-					server.download(hash);
-					StdoutResponse {
+					write_response(StdoutResponse {
 						id,
 						data: Data::Status(Status { ok: true }),
-					}
+					});
+
+					let hash = server.file_hash_by_name(&file_name).unwrap();
+					server.download(hash);
 				}
 				Command::GetFiles { id } => {
 					let mut files = HashMap::default();
@@ -195,10 +198,10 @@ fn main() {
 						}
 					}
 
-					StdoutResponse {
+					write_response(StdoutResponse {
 						id,
 						data: Data::Files(files.into_values().collect()),
-					}
+					});
 				}
 				Command::GetPeers { id } => {
 					let peers = server.peers().values().map(|peer| OutPeer {
@@ -207,18 +210,21 @@ fn main() {
 						speed: peer.speed,
 					}).collect();
 
-					StdoutResponse {
+					write_response(StdoutResponse {
 						id,
 						data: Data::Peers(peers),
-					}
+					});
 				}
 			};
-
-			println!("{}", serde_json::to_string(&resp).unwrap());
 		}
 
 		server.run_once();
 	}
+}
+
+fn write_response(resp: StdoutResponse) {
+	let resp = serde_json::to_string(&resp).unwrap();
+	println!("{}", resp);
 }
 
 #[derive(serde::Serialize)]
@@ -233,6 +239,9 @@ enum Data {
 	Status(Status),
 	Files(Vec<File>),
 	Peers(Vec<OutPeer>),
+	Progress {
+		progress: f64,
+	}
 }
 
 #[serde_as]
