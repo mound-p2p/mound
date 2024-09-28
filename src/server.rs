@@ -6,6 +6,7 @@ use std::{
 };
 
 use bincode::error::DecodeError;
+use serde::Serialize;
 use sha2::Digest;
 
 use crate::{
@@ -14,7 +15,8 @@ use crate::{
 	ChunkId, FileHash, HashMap, HashSet, PeerId, StdoutResponse,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
 pub struct Stats {
 	pub uploaded_chunks: u64,
 	pub downloaded_chunks: u64,
@@ -29,7 +31,7 @@ pub struct Server {
 	client_rx: mpsc::Receiver<TcpStream>,
 	chunk_dir: PathBuf,
 
-	stats: Stats,
+	pub stats: Stats,
 }
 
 fn accept_loop(listener: &TcpListener, tx: &mpsc::Sender<TcpStream>) {
@@ -448,7 +450,7 @@ impl Server {
 				crate::write_response(StdoutResponse {
 					id: command_id,
 					data: crate::Data::Progress {
-						progress: current_chunk as f64 / chunk_count,
+						progress: f64::from(current_chunk) / chunk_count,
 					},
 				});
 

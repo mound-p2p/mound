@@ -2,7 +2,8 @@
 #![allow(
 	clippy::cast_possible_truncation,
 	clippy::arc_with_non_send_sync,
-	clippy::type_complexity
+	clippy::type_complexity,
+	clippy::cast_precision_loss,
 )]
 
 mod packet;
@@ -18,6 +19,7 @@ use std::{
 
 use clap::Parser;
 use serde_with::serde_as;
+use server::Stats;
 
 use crate::{
 	packet::{Packet, Request, Response},
@@ -215,6 +217,12 @@ fn main() {
 						data: Data::Peers(peers),
 					});
 				}
+				Command::GetStats { id } => {
+					write_response(StdoutResponse {
+						id,
+						data: Data::Stats(server.stats),
+					});
+				}
 			};
 		}
 
@@ -222,9 +230,9 @@ fn main() {
 	}
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn write_response(resp: StdoutResponse) {
-	let resp = serde_json::to_string(&resp).unwrap();
-	println!("{}", resp);
+	println!("{}", serde_json::to_string(&resp).unwrap());
 }
 
 #[derive(serde::Serialize)]
@@ -241,7 +249,8 @@ enum Data {
 	Peers(Vec<OutPeer>),
 	Progress {
 		progress: f64,
-	}
+	},
+	Stats(Stats),
 }
 
 #[serde_as]
@@ -281,6 +290,9 @@ enum Command {
 		id: u32,
 	},
 	GetPeers {
+		id: u32,
+	},
+	GetStats {
 		id: u32,
 	},
 }
