@@ -78,7 +78,7 @@ impl Peer {
 				let packet = bincode::decode_from_std_read(&mut stream, bincode::config::standard());
 
 				if let Err(DecodeError::Io { inner, .. }) = &packet {
-					if inner.kind() == std::io::ErrorKind::UnexpectedEof {
+					if inner.kind() == std::io::ErrorKind::UnexpectedEof || inner.kind() == std::io::ErrorKind::BrokenPipe || inner.kind() == std::io::ErrorKind::ConnectionReset {
 						break;
 					}
 				}
