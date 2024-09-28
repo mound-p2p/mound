@@ -24,9 +24,11 @@ pub enum Request {
 	Chunks(FileHash, Vec<ChunkId>),
 	SetFileName(FileHash, String),
 	WriteChunks(FileHash, Vec<ChunkId>),
-	// sent in order as above vec of chunk ids
+	/// sent in order as above vec of chunk ids
 	WriteChunk(Vec<u8>),
 	HasChunk(FileHash, ChunkId),
+	/// Speedtest request, send the data back as-is
+	Speedtest(Vec<u8>),
 }
 
 impl fmt::Debug for Request {
@@ -58,6 +60,7 @@ impl fmt::Debug for Request {
 				.field(file_hash)
 				.field(chunk_id)
 				.finish(),
+			Request::Speedtest(_) => f.debug_tuple("Speedtest").finish(),
 		}
 	}
 }
@@ -76,8 +79,12 @@ pub enum Response {
 	},
 	/// The size of the last chunk (which may be less than 512).
 	/// Chunk data is streamed right after this response is sent.
-	Chunk(Vec<u8>),
+	///
+	/// The first part is the HMAC of the chunk.
+	Chunk([u8; 32], Vec<u8>),
 	NoOp,
+	/// Response to a speedtest request
+	Speedtest(Vec<u8>),
 }
 
 impl fmt::Debug for Response {
@@ -88,8 +95,9 @@ impl fmt::Debug for Response {
 				.field("peers", peers)
 				.field("chunks", chunks)
 				.finish(),
-			Response::Chunk(_) => f.debug_tuple("Chunk").finish(),
+			Response::Chunk(..) => f.debug_tuple("Chunk").finish(),
 			Response::NoOp => f.debug_tuple("NoOp").finish(),
+			Response::Speedtest(_) => f.debug_tuple("Speedtest").finish(),
 		}
 	}
 }

@@ -5,12 +5,13 @@ use std::{
 
 use bincode::error::DecodeError;
 
-use crate::{packet::Packet, PeerId};
+use crate::{packet::{Packet, Request}, PeerId};
 
 pub struct Peer {
 	stream: TcpStream,
 	rx: Arc<mpsc::Receiver<Result<Packet, DecodeError>>>,
 	tx: Arc<mpsc::Sender<Packet>>,
+	speed: f64,
 }
 
 impl Clone for Peer {
@@ -19,6 +20,7 @@ impl Clone for Peer {
 			stream: self.stream.try_clone().unwrap(),
 			rx: self.rx.clone(),
 			tx: self.tx.clone(),
+			speed: self.speed,
 		}
 	}
 }
@@ -28,6 +30,21 @@ fn addr_to_u64(addr: &SocketAddr) -> u64 {
 }
 
 impl Peer {
+	/// Returns link speed in MiB/s (roundtrip)
+	pub fn speedtest(&self) -> f64 {
+		let start = std::time::Instant::now();
+
+		for _ in 0..1024 {
+			self.send(Request::Speedtest(vec![0; 1024]));
+		}
+
+		for _ in 0..1024 {
+			self.block_recv().unwrap().unwrap();
+		}
+
+		1024. * 1024. / start.elapsed().as_secs_f64()
+	}
+
 	pub fn send<T: Into<Packet>>(&self, packet: T) {
 		self.tx.send(packet.into()).unwrap();
 	}
@@ -86,10 +103,14 @@ impl Peer {
 			}
 		});
 
-		Self {
+		let mut peer = Self {
 			stream,
 			rx: Arc::new(rx_client),
 			tx: Arc::new(tx_client),
-		}
+			speed: 0.
+		};
+
+		peer.speed = peer.speedtest();
+		peer
 	}
 }

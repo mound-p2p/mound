@@ -14,6 +14,13 @@ use crate::{
 	ChunkId, FileHash, HashMap, HashSet, PeerId,
 };
 
+#[derive(Debug, Default)]
+pub struct Stats {
+	pub uploaded_chunks: u64,
+	pub downloaded_chunks: u64,
+	pub downloaded_files: u64,
+}
+
 pub struct Server {
 	own_chunks: HashMap<FileHash, Vec<ChunkId>>,
 	peers: HashMap<PeerId, Peer>,
@@ -21,6 +28,8 @@ pub struct Server {
 	chunks: HashMap<(FileHash, ChunkId), Vec<PeerId>>,
 	client_rx: mpsc::Receiver<TcpStream>,
 	chunk_dir: PathBuf,
+
+	stats: Stats,
 }
 
 fn accept_loop(listener: &TcpListener, tx: &mpsc::Sender<TcpStream>) {
@@ -72,6 +81,13 @@ fn get_own_chunks(root: &PathBuf) -> (HashMap<FileHash, Vec<ChunkId>>, HashMap<F
 	(chunks, names)
 }
 
+fn sha256_of_vec(data: &[u8]) -> [u8; 32] {
+	let mut hasher = sha2::Sha256::new();
+
+	hasher.update(data);
+	hasher.finalize().into()
+}
+
 impl Server {
 	pub fn new<A: ToSocketAddrs>(addr: A, chunk_dir: PathBuf) -> Self {
 		let listener = TcpListener::bind(addr).unwrap();
@@ -87,6 +103,8 @@ impl Server {
 			chunks: HashMap::default(),
 			client_rx: rx,
 			chunk_dir,
+
+			stats: Stats::default(),
 		}
 	}
 
@@ -235,8 +253,10 @@ impl Server {
 							.join(format!("{file_hash:x}"))
 							.join(format!("{chunk_id:x}"));
 						let chunk = std::fs::read(chunk_path).unwrap();
+						let sha = sha256_of_vec(&chunk);
 
-						peer.send(Response::Chunk(chunk));
+						self.stats.uploaded_chunks += 1;
+						peer.send(Response::Chunk(sha, chunk));
 					}
 				}
 				Request::WriteChunks(file_hash, chunk_ids) => {
@@ -245,7 +265,7 @@ impl Server {
 
 					for chunk_id in chunk_ids {
 						let chunk = peer.block_recv().unwrap().unwrap();
-						let Packet::Response(Response::Chunk(chunk)) = chunk else {
+						let Packet::Response(Response::Chunk(_sha, chunk)) = chunk else {
 							panic!("Expected Response::Chunk");
 						};
 
@@ -275,6 +295,9 @@ impl Server {
 					std::fs::write(name_path, &name).unwrap();
 
 					self.add_file(file_hash, name);
+				}
+				Request::Speedtest(v) => {
+					peer.send(Response::Speedtest(v));
 				}
 				other => eprintln!("Unhandled request: {other:?}"),
 			}
@@ -318,8 +341,7 @@ impl Server {
 		let peers = self.peers.keys().copied().collect::<Vec<_>>();
 
 		for peer_id in &peers {
-
-				let peer = self.peers.get_mut(peer_id).unwrap();
+			let peer = self.peers.get_mut(peer_id).unwrap();
 
 			peer.send(Request::SetFileName(file_hash, name.clone()));
 		}
@@ -340,7 +362,9 @@ impl Server {
 				let peer = self.peers.get_mut(peer_id).unwrap();
 
 				peer.send(Request::WriteChunks(file_hash, vec![chunk_id]));
-				peer.send(Response::Chunk(buf.to_vec()));
+				peer.send(Response::Chunk(sha256_of_vec(buf), buf.to_vec()));
+
+				self.stats.uploaded_chunks += 1;
 			}
 		}
 	}
@@ -387,10 +411,17 @@ impl Server {
 
 				peer.send(Request::Chunks(file_hash, vec![id]));
 
-				let Ok(Packet::Response(Response::Chunk(chunk))) = peer.block_recv().unwrap() else {
+				let Ok(Packet::Response(Response::Chunk(sha, chunk))) = peer.block_recv().unwrap() else {
 					eprintln!("Expected Response::Chunk");
 					continue;
 				};
+
+				if sha256_of_vec(&chunk) != sha {
+					eprintln!("Chunk hash mismatch, trying next peer");
+					continue;
+				}
+
+				self.stats.downloaded_chunks += 1;
 
 				hasher.update(&chunk);
 				file.write_all(&chunk).unwrap();
@@ -403,6 +434,8 @@ impl Server {
 		let hash = xxhash_rust::xxh3::xxh3_128(hash.as_slice());
 
 		assert!(hash == file_hash, "Hash mismatch");
+
+		self.stats.downloaded_files += 1;
 
 		file.flush().unwrap();
 	}
