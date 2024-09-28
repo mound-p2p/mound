@@ -7,6 +7,10 @@ edition = "2021"
 bincode = { version = "2.0.0-rc.3", features = ["serde"] }
 clap = { version = "4.5.18", features = ["derive"] }
 ed25519-dalek = "2.1.1"
+fxhash = "0.2.1"
 mainline = "3.0.0"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+serde_with = { version = "3.9.0", features = ["hex"] }
 sha2 = "0.10.8"
 xxhash-rust = { version = "0.8.12", features = ["xxh3"] }
