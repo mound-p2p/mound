@@ -5,12 +5,15 @@ use std::{
 
 use bincode::error::DecodeError;
 
-use crate::{packet::{Packet, Request}, PeerId};
+use crate::{
+	packet::{Packet, Request},
+	PeerId,
+};
 
 pub struct Peer {
 	stream: TcpStream,
 	rx: Arc<mpsc::Receiver<Result<Packet, DecodeError>>>,
-	tx: Arc<mpsc::Sender<Packet>>,
+	tx: Arc<mpsc::SyncSender<Packet>>,
 	pub speed: f64,
 }
 
@@ -66,7 +69,7 @@ impl Peer {
 	}
 
 	pub fn new(stream: TcpStream) -> Self {
-		let (tx_client, rx_stream) = mpsc::channel();
+		let (tx_client, rx_stream) = mpsc::sync_channel(1);
 		let (tx_stream, rx_client) = mpsc::channel();
 
 		let s = stream.try_clone().unwrap();
@@ -78,7 +81,10 @@ impl Peer {
 				let packet = bincode::decode_from_std_read(&mut stream, bincode::config::standard());
 
 				if let Err(DecodeError::Io { inner, .. }) = &packet {
-					if inner.kind() == std::io::ErrorKind::UnexpectedEof || inner.kind() == std::io::ErrorKind::BrokenPipe || inner.kind() == std::io::ErrorKind::ConnectionReset {
+					if inner.kind() == std::io::ErrorKind::UnexpectedEof
+						|| inner.kind() == std::io::ErrorKind::BrokenPipe
+						|| inner.kind() == std::io::ErrorKind::ConnectionReset
+					{
 						break;
 					}
 				}
@@ -107,7 +113,7 @@ impl Peer {
 			stream,
 			rx: Arc::new(rx_client),
 			tx: Arc::new(tx_client),
-			speed: 0.
+			speed: 0.,
 		};
 
 		peer.speed = peer.speedtest();
