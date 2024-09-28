@@ -407,7 +407,7 @@ impl Server {
 		let mut hasher = sha2::Sha512::new();
 
 		for id in chunk_ids {
-			let peers = self.chunks.get(&(file_hash, id)).unwrap();
+			let peers = self.chunks.get_mut(&(file_hash, id)).unwrap();
 
 			// download from the peer that has the chunk
 			for peer_id in peers {
