@@ -11,7 +11,7 @@ use sha2::Digest;
 use crate::{
 	packet::{Packet, Request, Response},
 	peer::Peer,
-	ChunkId, FileHash, HashMap, HashSet, PeerId,
+	ChunkId, FileHash, HashMap, HashSet, PeerId, StdoutResponse,
 };
 
 #[derive(Debug, Default)]
@@ -311,7 +311,7 @@ impl Server {
 		}
 	}
 
-	pub fn upload(&mut self, path: &PathBuf) {
+	pub fn upload(&mut self, path: &PathBuf, command_id: u32) {
 		// send each chunk to 2 peers
 		let mut file = std::fs::File::open(path).unwrap();
 		let mut hasher = sha2::Sha512::new();
@@ -373,10 +373,17 @@ impl Server {
 
 				self.stats.uploaded_chunks += 1;
 			}
+
+			crate::write_response(StdoutResponse {
+				id: command_id,
+				data: crate::Data::Progress {
+					progress: chunk_id as f64 / chunks as f64,
+				},
+			});
 		}
 	}
 
-	pub fn download(&mut self, file_hash: FileHash) {
+	pub fn download(&mut self, file_hash: FileHash, command_id: u32) {
 		let chunk_ids = self
 			.own_chunks
 			.get(&file_hash)
@@ -409,6 +416,9 @@ impl Server {
 
 		let mut hasher = sha2::Sha512::new();
 
+		let chunk_count = chunk_ids.len() as f64;
+		let mut current_chunk = 0;
+
 		for id in chunk_ids {
 			let peers = self.chunks.get_mut(&(file_hash, id)).unwrap();
 
@@ -432,6 +442,15 @@ impl Server {
 
 				hasher.update(&chunk);
 				file.write_all(&chunk).unwrap();
+
+				current_chunk += 1;
+
+				crate::write_response(StdoutResponse {
+					id: command_id,
+					data: crate::Data::Progress {
+						progress: current_chunk as f64 / chunk_count,
+					},
+				});
 
 				break;
 			}
