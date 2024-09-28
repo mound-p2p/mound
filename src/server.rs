@@ -1,8 +1,6 @@
 use std::{
-	ffi::OsStr,
 	io::{Read, Seek, Write},
 	net::{TcpListener, TcpStream, ToSocketAddrs},
-	os::unix::ffi::OsStrExt,
 	path::PathBuf,
 	sync::mpsc,
 };
@@ -25,7 +23,7 @@ pub struct Server {
 	chunk_dir: PathBuf,
 }
 
-fn accept_loop(listener: TcpListener, tx: mpsc::Sender<TcpStream>) {
+fn accept_loop(listener: &TcpListener, tx: &mpsc::Sender<TcpStream>) {
 	for stream in listener.incoming() {
 		let stream = stream.unwrap();
 		tx.send(stream).unwrap();
@@ -80,7 +78,7 @@ impl Server {
 		let (tx, rx) = mpsc::channel();
 		let (own_chunks, file_names) = get_own_chunks(&chunk_dir);
 
-		std::thread::spawn(move || accept_loop(listener, tx));
+		std::thread::spawn(move || accept_loop(&listener, &tx));
 
 		Self {
 			own_chunks,
@@ -192,7 +190,7 @@ impl Server {
 					}
 				}
 			}
-			other => eprintln!("Unhandled request: {:?}", other),
+			other => eprintln!("Unhandled request: {other:?}"),
 		};
 
 		self.add_peer(peer);
@@ -220,7 +218,7 @@ impl Server {
 						continue;
 					}
 					other => {
-						eprintln!("Error decoding packet: {:?}", other);
+						eprintln!("Error decoding packet: {other:?}");
 						continue;
 					}
 				},
@@ -234,8 +232,8 @@ impl Server {
 					for chunk_id in chunk_ids {
 						let chunk_path = self
 							.chunk_dir
-							.join(format!("{:x}", file_hash))
-							.join(format!("{:x}", chunk_id));
+							.join(format!("{file_hash:x}"))
+							.join(format!("{chunk_id:x}"));
 						let chunk = std::fs::read(chunk_path).unwrap();
 
 						peer.send(Response::Chunk(chunk));
@@ -243,7 +241,7 @@ impl Server {
 				}
 				Request::WriteChunks(file_hash, chunk_ids) => {
 					// create file dir
-					std::fs::create_dir_all(self.chunk_dir.join(format!("{:x}", file_hash))).unwrap();
+					std::fs::create_dir_all(self.chunk_dir.join(format!("{file_hash:x}"))).unwrap();
 
 					for chunk_id in chunk_ids {
 						let chunk = peer.block_recv().unwrap().unwrap();
@@ -253,8 +251,8 @@ impl Server {
 
 						let chunk_path = self
 							.chunk_dir
-							.join(format!("{:x}", file_hash))
-							.join(format!("{:x}", chunk_id));
+							.join(format!("{file_hash:x}"))
+							.join(format!("{chunk_id:x}"));
 						let mut file = std::fs::OpenOptions::new()
 							.write(true)
 							.create(true)
@@ -272,24 +270,24 @@ impl Server {
 				}
 				Request::SetFileName(file_hash, name) => {
 // write `name` file in file dir
-					let name_path = self.chunk_dir.join(format!("{:x}", file_hash)).join("name");
+					let name_path = self.chunk_dir.join(format!("{file_hash:x}")).join("name");
 
 					std::fs::write(name_path, &name).unwrap();
 
 					self.add_file(file_hash, name);
 				}
-				other => eprintln!("Unhandled request: {:?}", other),
+				other => eprintln!("Unhandled request: {other:?}"),
 			}
 		}
 	}
 
-	pub fn upload(&mut self, path: PathBuf) {
+	pub fn upload(&mut self, path: &PathBuf) {
 		// send each chunk to 2 peers
-		let mut file = std::fs::File::open(&path).unwrap();
+		let mut file = std::fs::File::open(path).unwrap();
 		let mut hasher = sha2::Sha512::new();
 		let name = path.file_name().unwrap().to_str().unwrap().to_string();
 
-		let size = std::fs::metadata(&path).unwrap().len();
+		let size = std::fs::metadata(path).unwrap().len();
 		let chunks = (size + 511) / 512;
 		let size_of_last = size as u16 % 512;
 
@@ -351,7 +349,7 @@ impl Server {
 		let chunk_ids = self
 			.own_chunks
 			.get(&file_hash)
-			.map_or_else(HashSet::default, |v| v.iter().cloned().collect());
+			.map_or_else(HashSet::default, |v| v.iter().copied().collect());
 
 		let other_chunk_ids = self
 			.chunks
@@ -362,15 +360,15 @@ impl Server {
 
 		let mut chunk_ids = chunk_ids
 			.union(&other_chunk_ids)
-			.cloned()
+			.copied()
 			.collect::<Vec<_>>();
 
-		chunk_ids.sort();
+		chunk_ids.sort_unstable();
 
 		let chunk_path = self
 			.chunk_dir
 			.join("downloads")
-			.join(format!("{:x}", file_hash));
+			.join(format!("{file_hash:x}"));
 		let mut file = std::fs::OpenOptions::new()
 			.create(true)
 			.write(true)
@@ -404,9 +402,7 @@ impl Server {
 		let hash = hasher.finalize();
 		let hash = xxhash_rust::xxh3::xxh3_128(hash.as_slice());
 
-		if hash != file_hash {
-			panic!("Hash mismatch");
-		}
+		assert!(hash == file_hash, "Hash mismatch");
 
 		file.flush().unwrap();
 	}

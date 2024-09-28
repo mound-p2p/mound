@@ -1,4 +1,9 @@
 #![warn(clippy::pedantic)]
+#![allow(
+	clippy::cast_possible_truncation,
+	clippy::arc_with_non_send_sync,
+	clippy::type_complexity
+)]
 
 mod packet;
 mod peer;
@@ -142,7 +147,7 @@ fn main() {
 		if let Ok(command) = command {
 			let resp = match command {
 				Command::Upload { path, id } => {
-					server.upload(path);
+					server.upload(&path);
 					StdoutResponse {
 						id,
 						data: Data::Status(Status { ok: true }),

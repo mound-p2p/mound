@@ -66,7 +66,7 @@ impl Peer {
 					}
 				}
 
-				println!("[recv] {:?}", packet);
+				println!("[recv] {packet:?}");
 
 				let _ = tx_stream.send(packet);
 			}
@@ -80,7 +80,7 @@ impl Peer {
 			loop {
 				let packet = rx_stream.recv().unwrap();
 
-				println!("[send] {:?}", packet);
+				println!("[send] {packet:?}");
 
 				let _ = bincode::encode_into_std_write(&packet, &mut stream, bincode::config::standard());
 			}
