@@ -169,7 +169,7 @@ fn main() {
 						data: Data::Status(Status { ok: true }),
 					}
 				}
-				Command::List { id } => {
+				Command::GetFiles { id } => {
 					let mut files = HashMap::default();
 
 					for (file_hash, chunk_ids) in server.own_chunks() {
@@ -200,6 +200,18 @@ fn main() {
 						data: Data::Files(files.into_values().collect()),
 					}
 				}
+				Command::GetPeers { id } => {
+					let peers = server.peers().values().map(|peer| OutPeer {
+						id: peer.id(),
+						addr: peer.addr(),
+						speed: peer.speed,
+					}).collect();
+
+					StdoutResponse {
+						id,
+						data: Data::Peers(peers),
+					}
+				}
 			};
 
 			println!("{}", serde_json::to_string(&resp).unwrap());
@@ -220,6 +232,16 @@ struct StdoutResponse {
 enum Data {
 	Status(Status),
 	Files(Vec<File>),
+	Peers(Vec<OutPeer>),
+}
+
+#[serde_as]
+#[derive(serde::Serialize)]
+struct OutPeer {
+	id: u64,
+	#[serde_as(as = "serde_with::DisplayFromStr")]
+	addr: SocketAddr,
+	speed: f64,
 }
 
 #[derive(serde::Serialize)]
@@ -244,7 +266,10 @@ enum Command {
 		id: u32,
 		file_name: String,
 	},
-	List {
+	GetFiles {
+		id: u32,
+	},
+	GetPeers {
 		id: u32,
 	},
 }

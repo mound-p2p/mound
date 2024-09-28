@@ -108,6 +108,10 @@ impl Server {
 		}
 	}
 
+	pub fn peers(&self) -> &HashMap<PeerId, Peer> {
+		&self.peers
+	}
+
 	pub fn file_name(&self, file_hash: FileHash) -> Option<&str> {
 		self.file_names.get(&file_hash).map(String::as_str)
 	}

@@ -11,7 +11,7 @@ pub struct Peer {
 	stream: TcpStream,
 	rx: Arc<mpsc::Receiver<Result<Packet, DecodeError>>>,
 	tx: Arc<mpsc::Sender<Packet>>,
-	speed: f64,
+	pub speed: f64,
 }
 
 impl Clone for Peer {
