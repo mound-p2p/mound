@@ -379,7 +379,7 @@ impl Server {
 			crate::write_response(StdoutResponse {
 				id: command_id,
 				data: crate::Data::Progress {
-					progress: chunk_id as f64 / chunks as f64,
+					progress: (chunk_id + 1) as f64 / chunks as f64,
 				},
 			});
 		}
