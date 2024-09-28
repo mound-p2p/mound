@@ -152,7 +152,7 @@ fn main() {
 						data: Data::Status(Status { ok: true }),
 					});
 
-					server.upload(&path);
+					server.upload(&path, id);
 				}
 				Command::DownloadByHash { file_hash, id } => {
 					write_response(StdoutResponse {
@@ -161,7 +161,7 @@ fn main() {
 					});
 
 					let hash = FileHash::from_be_bytes(file_hash);
-					server.download(hash);
+					server.download(hash, id);
 				}
 				Command::DownloadByName { file_name, id } => {
 					write_response(StdoutResponse {
@@ -170,7 +170,7 @@ fn main() {
 					});
 
 					let hash = server.file_hash_by_name(&file_name).unwrap();
-					server.download(hash);
+					server.download(hash, id);
 				}
 				Command::GetFiles { id } => {
 					let mut files = HashMap::default();
@@ -285,6 +285,7 @@ enum Command {
 
 #[serde_as]
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct File {
 	#[serde_as(as = "serde_with::hex::Hex")]
 	id: [u8; 16],
