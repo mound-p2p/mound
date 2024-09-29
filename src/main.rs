@@ -3,9 +3,10 @@
 	clippy::cast_possible_truncation,
 	clippy::arc_with_non_send_sync,
 	clippy::type_complexity,
-	clippy::cast_precision_loss,
+	clippy::cast_precision_loss
 )]
 
+mod model;
 mod packet;
 mod peer;
 mod server;
@@ -206,11 +207,15 @@ fn main() {
 					});
 				}
 				Command::GetPeers { id } => {
-					let peers = server.peers().values().map(|peer| OutPeer {
-						id: peer.id(),
-						addr: peer.addr(),
-						speed: peer.speed,
-					}).collect();
+					let peers = server
+						.peers()
+						.values()
+						.map(|peer| OutPeer {
+							id: peer.id(),
+							addr: peer.addr(),
+							speed: peer.speed,
+						})
+						.collect();
 
 					write_response(StdoutResponse {
 						id,
@@ -221,6 +226,14 @@ fn main() {
 					write_response(StdoutResponse {
 						id,
 						data: Data::Stats(server.stats),
+					});
+				}
+				Command::GetUnstableProbability { id } => {
+					let probability = server.get_unstable_probability();
+
+					write_response(StdoutResponse {
+						id,
+						data: Data::UnstableProbability { probability },
 					});
 				}
 			};
@@ -247,9 +260,8 @@ enum Data {
 	Status(Status),
 	Files(Vec<File>),
 	Peers(Vec<OutPeer>),
-	Progress {
-		progress: f64,
-	},
+	Progress { progress: f64 },
+	UnstableProbability { probability: f64 },
 	Stats(Stats),
 }
 
@@ -293,6 +305,9 @@ enum Command {
 		id: u32,
 	},
 	GetStats {
+		id: u32,
+	},
+	GetUnstableProbability {
 		id: u32,
 	},
 }

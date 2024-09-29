@@ -6,10 +6,12 @@ use std::{
 };
 
 use bincode::error::DecodeError;
+use rand::Rng;
 use serde::Serialize;
 use sha2::Digest;
 
 use crate::{
+	model,
 	packet::{Packet, Request, Response},
 	peer::Peer,
 	ChunkId, FileHash, HashMap, HashSet, PeerId, StdoutResponse,
@@ -24,12 +26,16 @@ pub struct Stats {
 }
 
 pub struct Server {
+	start: std::time::Instant,
+
 	own_chunks: HashMap<FileHash, Vec<ChunkId>>,
 	peers: HashMap<PeerId, Peer>,
 	file_names: HashMap<FileHash, String>,
 	chunks: HashMap<(FileHash, ChunkId), Vec<PeerId>>,
 	client_rx: mpsc::Receiver<TcpStream>,
 	chunk_dir: PathBuf,
+
+	model: model::Model,
 
 	pub stats: Stats,
 }
@@ -99,15 +105,39 @@ impl Server {
 		std::thread::spawn(move || accept_loop(&listener, &tx));
 
 		Self {
+			start: std::time::Instant::now(),
+
 			own_chunks,
 			file_names,
 			peers: HashMap::default(),
 			chunks: HashMap::default(),
 			client_rx: rx,
 			chunk_dir,
+			model: model::Model::new().unwrap(),
 
 			stats: Stats::default(),
 		}
+	}
+
+	/// `latency`, `packet_loss_rate`, `available_bandwidth`, `residual_bandwidth`,
+	/// `node_uptime`, `node_availability`, `node_load`, `node_utilization`,
+	/// `realtime_transfer_rate`
+	pub fn get_unstable_probability(&self) -> f64 {
+		let average_speed = self.peers().values().map(|p| p.speed).sum::<f64>() / self.peers().len() as f64;
+		let max_speed = self.peers().values().map(|p| p.speed).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+		let mut rand = rand::thread_rng();
+
+		self.model.predict([
+			(average_speed / 50.0).clamp(2.0, 20.0), // latency
+			rand.gen_range(0.0..0.02), // packet_loss_rate
+			average_speed, // available_bandwidth
+			(1_024. - average_speed).max(0.0), // residual_bandwidth
+			(self.start.elapsed().as_secs() / 60 / 60) as f64, // node_uptime
+			rand.gen_range(0.9..0.99), // node_availability
+			rand.gen_range(0.3..0.9), // node_load
+			rand.gen_range(0.2..0.7), // node_utilization
+			max_speed, // realtime_transfer_rate
+		])
 	}
 
 	pub fn peers(&self) -> &HashMap<PeerId, Peer> {
@@ -295,7 +325,7 @@ impl Server {
 					self.add_chunk(file_hash, chunk_id, id);
 				}
 				Request::SetFileName(file_hash, name) => {
-// write `name` file in file dir
+					// write `name` file in file dir
 					let name_path = self.chunk_dir.join(format!("{file_hash:x}"));
 
 					std::fs::create_dir_all(&name_path).unwrap();
@@ -342,10 +372,7 @@ impl Server {
 		// reset file to beginning
 		file.seek(std::io::SeekFrom::Start(0)).unwrap();
 
-		self.add_file(
-			file_hash,
-			name.clone(),
-		);
+		self.add_file(file_hash, name.clone());
 
 		let peers = self.peers.keys().copied().collect::<Vec<_>>();
 
