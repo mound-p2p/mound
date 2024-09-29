@@ -459,7 +459,9 @@ impl Server {
 
 			// download from the peer that has the chunk
 			for peer_id in peers {
-				let peer = self.peers.get_mut(peer_id).unwrap();
+				let Some(peer) = self.peers.get_mut(peer_id) else {
+					continue;
+				};
 
 				peer.send(Request::Chunks(file_hash, vec![id]));
 
