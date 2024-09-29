@@ -21,7 +21,7 @@ use std::{
 use clap::Parser;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::trace::{Tracer, TracerProvider};
+use opentelemetry_sdk::trace::Tracer;
 use serde_with::serde_as;
 use server::Stats;
 use tracing::Level;
@@ -58,7 +58,11 @@ fn init_tracer() -> Tracer {
 	let provider = opentelemetry_otlp::new_pipeline()
 		.tracing()
 		.with_trace_config(opentelemetry_sdk::trace::Config::default())
-		.with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint("http://localhost:4317"))
+		.with_exporter(
+			opentelemetry_otlp::new_exporter()
+				.tonic()
+				.with_endpoint("http://localhost:4317"),
+		)
 		.install_simple()
 		.unwrap();
 

@@ -1,5 +1,5 @@
 use std::{
-	io::{Read, Seek, Write},
+	io::{BufReader, Read, Write},
 	net::{TcpListener, TcpStream, ToSocketAddrs},
 	path::PathBuf,
 	sync::mpsc,
@@ -11,10 +11,7 @@ use serde::Serialize;
 use sha2::Digest;
 
 use crate::{
-	model,
-	packet::{Packet, Request, Response},
-	peer::Peer,
-	ChunkId, FileHash, HashMap, HashSet, PeerId, StdoutResponse,
+	model, packet::{Packet, Request, Response}, peer::Peer, ChunkId, FileHash, HashMap, HashSet, PeerId, StdoutResponse
 };
 
 #[derive(Debug, Default, Serialize, Clone, Copy)]
@@ -351,13 +348,15 @@ impl Server {
 
 	pub fn upload(&mut self, path: &PathBuf, command_id: u32) {
 		// send each chunk to 2 peers
-		let mut file = std::fs::File::open(path).unwrap();
+		let file = flate2::bufread::ZlibEncoder::new(BufReader::new(std::fs::File::open(path).unwrap()), flate2::Compression::default());
 		let mut hasher = sha2::Sha512::new();
 		let name = path.file_name().unwrap().to_str().unwrap().to_string();
 
-		let size = std::fs::metadata(path).unwrap().len();
+		let size = file.bytes().count() as u64;
 		let chunks = (size + 511) / 512;
 		let size_of_last = size as u16 % 512;
+
+		let mut file = flate2::bufread::ZlibEncoder::new(BufReader::new(std::fs::File::open(path).unwrap()), flate2::Compression::default());
 
 		// read entire file to get the hash
 		let mut buf = [0; 512];
@@ -375,8 +374,7 @@ impl Server {
 		let hash = hasher.finalize();
 		let file_hash = xxhash_rust::xxh3::xxh3_128(hash.as_slice());
 
-		// reset file to beginning
-		file.seek(std::io::SeekFrom::Start(0)).unwrap();
+		let mut file = flate2::bufread::ZlibEncoder::new(BufReader::new(std::fs::File::open(path).unwrap()), flate2::Compression::default());
 
 		self.add_file(file_hash, name.clone());
 
@@ -442,12 +440,13 @@ impl Server {
 			.chunk_dir
 			.join("downloads")
 			.join(format!("{file_hash:x}"));
-		let mut file = std::fs::OpenOptions::new()
+		let file = std::fs::OpenOptions::new()
 			.create(true)
 			.write(true)
 			.truncate(true)
 			.open(chunk_path)
 			.unwrap();
+		let mut file = flate2::write::ZlibDecoder::new(file);
 
 		let mut hasher = sha2::Sha512::new();
 
