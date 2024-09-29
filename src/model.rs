@@ -40,9 +40,9 @@ impl Model {
 		})
 	}
 
-	/// `latency`, `packet_loss_rate`, `available_bandwidth`, `residual_bandwidth`,
-	/// `node_uptime`, `node_availability`, `node_load`, `node_utilization`,
-	/// `realtime_transfer_rate`
+	/// `latency`, `packet_loss_rate`, `available_bandwidth`,
+	/// `residual_bandwidth`, `node_uptime`, `node_availability`, `node_load`,
+	/// `node_utilization`, `realtime_transfer_rate`
 	pub fn predict(&self, data: [f64; 9]) -> f64 {
 		let y = self.inner.predict(array![[
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]

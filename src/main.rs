@@ -19,8 +19,14 @@ use std::{
 };
 
 use clap::Parser;
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::trace::{Tracer, TracerProvider};
 use serde_with::serde_as;
 use server::Stats;
+use tracing::Level;
+use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
 	packet::{Packet, Request, Response},
@@ -48,9 +54,31 @@ struct Args {
 	chunk_dir: PathBuf,
 }
 
+fn init_tracer() -> Tracer {
+	let provider = opentelemetry_otlp::new_pipeline()
+		.tracing()
+		.with_trace_config(opentelemetry_sdk::trace::Config::default())
+		.with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint("http://localhost:4317"))
+		.install_simple()
+		.unwrap();
+
+	opentelemetry::global::set_tracer_provider(provider.clone());
+	provider.tracer("tracing-otel-subscriber")
+}
+
 #[allow(clippy::too_many_lines)]
-fn main() {
+#[tokio::main]
+async fn main() {
 	let args = Args::parse();
+	let tracer = init_tracer();
+
+	tracing_subscriber::registry()
+		.with(tracing_subscriber::filter::LevelFilter::from_level(
+			Level::INFO,
+		))
+		.with(OpenTelemetryLayer::new(tracer))
+		.init();
+
 	let mut server = Server::new(("0.0.0.0", args.port), args.chunk_dir);
 
 	if let Some(seed) = args.seed {

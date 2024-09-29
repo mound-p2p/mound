@@ -119,24 +119,30 @@ impl Server {
 		}
 	}
 
-	/// `latency`, `packet_loss_rate`, `available_bandwidth`, `residual_bandwidth`,
-	/// `node_uptime`, `node_availability`, `node_load`, `node_utilization`,
-	/// `realtime_transfer_rate`
+	/// `latency`, `packet_loss_rate`, `available_bandwidth`,
+	/// `residual_bandwidth`, `node_uptime`, `node_availability`, `node_load`,
+	/// `node_utilization`, `realtime_transfer_rate`
 	pub fn get_unstable_probability(&self) -> f64 {
-		let average_speed = self.peers().values().map(|p| p.speed).sum::<f64>() / self.peers().len() as f64;
-		let max_speed = self.peers().values().map(|p| p.speed).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+		let average_speed =
+			self.peers().values().map(|p| p.speed).sum::<f64>() / self.peers().len() as f64;
+		let max_speed = self
+			.peers()
+			.values()
+			.map(|p| p.speed)
+			.max_by(|a, b| a.partial_cmp(b).unwrap())
+			.unwrap();
 		let mut rand = rand::thread_rng();
 
 		self.model.predict([
-			(average_speed / 50.0).clamp(2.0, 20.0), // latency
-			rand.gen_range(0.0..0.02), // packet_loss_rate
-			average_speed, // available_bandwidth
-			(1_024. - average_speed).max(0.0), // residual_bandwidth
+			(average_speed / 50.0).clamp(2.0, 20.0),           // latency
+			rand.gen_range(0.0..0.02),                         // packet_loss_rate
+			average_speed,                                     // available_bandwidth
+			(1_024. - average_speed).max(0.0),                 // residual_bandwidth
 			(self.start.elapsed().as_secs() / 60 / 60) as f64, // node_uptime
-			rand.gen_range(0.9..0.99), // node_availability
-			rand.gen_range(0.3..0.9), // node_load
-			rand.gen_range(0.2..0.7), // node_utilization
-			max_speed, // realtime_transfer_rate
+			rand.gen_range(0.9..0.99),                         // node_availability
+			rand.gen_range(0.3..0.9),                          // node_load
+			rand.gen_range(0.2..0.7),                          // node_utilization
+			max_speed,                                         // realtime_transfer_rate
 		])
 	}
 
